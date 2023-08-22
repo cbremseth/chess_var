@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Chess Variation</title>
+
+    <!-- import the webpage's stylesheet -->
+    <link rel="stylesheet" href="style.css" />
+
+    <script type="module" src="https://unpkg.com/chessboard-element?module"></script>
+
+    <!-- import the webpage's javascript file -->
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+    <!-- this is the start of content -->
+    <h1>Chess Variation</h1>
+    <p>
+        Here's the rules:
+    <ul>
+        <li>As in standard chess, white moves first.</li>
+        <li>The first player to move their king onto row 8 is the winner.</li>
+        <li>Pieces move and capture the same as in standard chess.</li>
+        <li>As in standard chess, a player is not allowed to expose their own king to check (including moving a piece
+            that was blocking a check such that it no longer does).</li>
+        <li>Unlike standard chess, a player is not allowed to put the opponent's king in check (including moving a piece
+            that was blocking a check such that it no longer does).</li>
+
+    </ul>
+    </p>
+    <p>
+        Game:
+    <ul>
+        <li>Current turn:
+            <span id="turn">White</span>
+        </li>
+        <li>
+            Game state: <span id="state">UNFINISHED</span>
+        </li>
+    </ul>
+
+
+    </p>
+
+    <chess-board style="width: 100%;max-width:400px" draggable-pieces drop-off-board="snapback" position="start"
+        id="board"></chess-board>
+
+</body>
+
+</html>
