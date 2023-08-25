@@ -43,10 +43,18 @@
         </li>
     </ul>
 
-
+    <div>
+        <span>Select game mode:</span>
+        <select id="difficultySelect">
+            <option default value="none">Two Player</option>
+            <option value="beginner">Beginner Bot</option>
+            <option value="intermediate">Intermediate Bot</option>
+        </select>
+        <button id="startGame">Start Game</button>
+    </div>
     </p>
 
-    <chess-board style="width: 100%;max-width:400px" draggable-pieces drop-off-board="snapback" position="start"
+    <chess-board style="width: 100%;max-width:400px" draggable-pieces drop-off-board="snapback" 
         id="board"></chess-board>
 
 </body>
