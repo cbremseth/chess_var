@@ -57,6 +57,7 @@ class ChessVar {
     this.validMoves = {};
     for (let position in this.board.position) {
       const piece = this.board.position[position];
+      // console.log(piece + " " + position);
       this.updateMoves(piece, position);
     }
   }
@@ -233,81 +234,332 @@ class ChessVar {
         if (this.board.position[position] === "wK") {
           this.state = "WHITE WINS";
           stateIndicator.innerHTML = "White Wins";
+          return;
         } else if (this.board.position[position] === "bK") {
           this.state = "BLACK WINS";
           stateIndicator.innerHTML = "Black Wins";
+          return;
         }
       }
     }
 
-    if (this.state === "WHITE WINS" || this.state === "BLACK WINS") {
-      return; // If the this has ended due to a win, no need to proceed further
-    }
-
-    // Otherwise, continue updating whose turn it is
-    this.turn = this.turn === "w" ? "b" : "w";
     if (this.turn == "w") {
       turnIndicator.innerHTML = "White";
     } else {
       turnIndicator.innerHTML = "Black";
     }
   }
+
+  toggleTurn() {
+    this.turn = this.turn === "w" ? "b" : "w";
+  }
 }
 
-const game = new ChessVar();
+class ChessBot {
+  constructor(game) {
+    this.game = game;
+    this.pieceValues = {
+      R: 80,
+      N: 20,
+      B: 100,
+    };
+  }
+  // Create a method to make the move on behalf of the bot
+  makeMove() {
+    let validMoveFound = false;
 
-game.board.setPosition({
-  a1: "wK",
-  a2: "wR",
-  b1: "wB",
-  b2: "wB",
-  c1: "wN",
-  c2: "wN",
-  h1: "bK",
-  h2: "bR",
-  g1: "bB",
-  g2: "bB",
-  f1: "bN",
-  f2: "bN",
-});
+    // Loop until a valid move is found
+    while (!validMoveFound) {
+      const bestMove = this.getBestMove();
 
-game.updateAllValidMoves();
+      if (bestMove) {
+        const { source, target } = bestMove;
+        const piece = this.game.board.position[source];
 
-game.board.addEventListener("drag-start", (e) => {
-  const { source, piece, position, orientation } = e.detail;
+        // Check if the move is valid
+        if (!this.game.checkForCheck(piece, source, target)) {
+          console.log(
+            "Bot is moving from",
+            bestMove.source,
+            "to",
+            bestMove.target
+          );
 
-  // do not pick up pieces if the game is over
-  if (game.state == "WHITE WINS" || game.state == "BLACK WINS") {
-    e.preventDefault();
-    return;
+          // Perform the move
+          this.game.board.position[bestMove.target] =
+            this.game.board.position[bestMove.source];
+          delete this.game.board.position[bestMove.source];
+
+          // Update the game state
+          this.game.updateAllValidMoves();
+          this.game.updateStatus();
+
+          validMoveFound = true; // Exit the loop
+        }
+      } else {
+        // No more moves left, exit the loop
+        break;
+      }
+    }
+  }
+}
+
+class BeginnerChessBot extends ChessBot {
+  getBestMove() {
+    // Find all valid moves for black pieces
+    let blackMoves = [];
+    for (let position in this.game.validMoves) {
+      if (
+        this.game.board.position[position] &&
+        this.game.board.position[position][0] === "b"
+      ) {
+        for (let move of this.game.validMoves[position]) {
+          blackMoves.push({ source: position, target: move });
+        }
+      }
+    }
+
+    // Randomly select one of the valid moves
+    if (blackMoves.length > 0) {
+      return blackMoves[Math.floor(Math.random() * blackMoves.length)];
+    } else {
+      return null; // No valid moves available
+    }
+  }
+}
+
+class IntermediateChessBot extends ChessBot {
+  getBestMove() {
+    let highestValueCapture = null;
+    let highestValueAvoid = null;
+    let highestValue = 0;
+    let randomKingMove = null;
+    let randomMove = null;
+    let highestThreatValue = 0;
+    console.log("Valid Moves: ", this.game.validMoves);
+    console.log("Board Position: ", this.game.board.position);
+
+    let mostThreatenedPiece = null;
+
+    for (let position in this.game.validMoves) {
+      const pieceInfo = this.game.board.position[position];
+      const isValidMoveForBlack = pieceInfo && pieceInfo[0] === "b";
+
+      for (let move of this.game.validMoves[position]) {
+        console.log("Considering move from ", position, " to ", move);
+
+        const moveObj = { source: position, target: move };
+        const targetPieceInfo = this.game.board.position[move];
+
+        // Store a random move as a fallback
+        if (
+          !randomMove &&
+          isValidMoveForBlack &&
+          !this.game.checkForCheck(pieceInfo, position, move)
+        ) {
+          randomMove = moveObj;
+        }
+
+        // Check for king advancement
+        if (
+          pieceInfo &&
+          !this.game.checkForCheck(pieceInfo, position, move) &&
+          pieceInfo === "bK" &&
+          moveObj.source[1] < moveObj.target[1]
+        ) {
+          randomKingMove = moveObj;
+        }
+
+        // Check for capturing moves
+        if (targetPieceInfo && targetPieceInfo[0] === "w") {
+          const capturedValue = this.pieceValues[targetPieceInfo[1]];
+          if (capturedValue > highestValue) {
+            if (!this.game.checkForCheck(pieceInfo, position, move)) {
+              highestValue = capturedValue;
+              highestValueCapture = moveObj;
+            }
+          }
+        }
+
+        // Identify the bot's piece under the most significant threat
+        if (
+          pieceInfo &&
+          pieceInfo[0] === "w" &&
+          targetPieceInfo &&
+          targetPieceInfo[0] === "b"
+        ) {
+          const threatValue = this.pieceValues[targetPieceInfo[1]];
+          if (threatValue > highestThreatValue) {
+            highestThreatValue = threatValue;
+            mostThreatenedPiece = moveObj.target;
+            console.log(mostThreatenedPiece);
+          }
+        }
+      }
+    }
+
+    // Find an escape move for the most threatened piece
+    if (mostThreatenedPiece) {
+      const validEscapeMoves = this.game.validMoves[mostThreatenedPiece];
+      for (let potentialEscape of validEscapeMoves) {
+        let isSafe = true;
+        for (let opponentSquare in this.game.validMoves) {
+          const opponentPiece = this.game.board.position[opponentSquare];
+          if (
+            opponentPiece &&
+            opponentPiece[0] === "w" &&
+            this.game.validMoves[opponentSquare].includes(potentialEscape)
+          ) {
+            isSafe = false;
+            break;
+          }
+        }
+
+        // Check if the move does not put anything in check
+        if (
+          isSafe &&
+          !this.game.checkForCheck(
+            this.game.board.position[mostThreatenedPiece],
+            mostThreatenedPiece,
+            potentialEscape
+          )
+        ) {
+          highestValueAvoid = {
+            source: mostThreatenedPiece,
+            target: potentialEscape,
+          };
+          break;
+        }
+      }
+    }
+    console.log(
+      "Valid moves for threatened piece: ",
+      this.game.validMoves[mostThreatenedPiece]
+    );
+    console.log("Highest threat value: ", highestThreatValue);
+    console.log("highest valud avoid", highestValueAvoid);
+    console.log(this.game.board.position);
+    if (highestValueCapture) {
+      console.log("capturing");
+      return highestValueCapture;
+    }
+    if (highestValueAvoid) {
+      console.log("avoiding capture");
+      return highestValueAvoid;
+    }
+    if (randomKingMove) {
+      console.log("advancing king");
+      return randomKingMove;
+    }
+    if (randomMove) {
+      console.log("random move");
+      return randomMove;
+    }
+
+    return null; // No valid moves available
+  }
+}
+
+class ExpertChessBot extends ChessBot {}
+
+document.getElementById("startGame").addEventListener("click", function () {
+  document.getElementById("startGame").style.display = "none";
+  const difficulty = document.getElementById("difficultySelect").value;
+  let bot;
+  const game = new ChessVar();
+  switch (difficulty) {
+    case "none":
+      bot = null; // no bot in this mode
+      break;
+    case "beginner":
+      bot = new BeginnerChessBot(game);
+      break;
+    case "intermediate":
+      bot = new IntermediateChessBot(game);
+      break;
+    case "expert":
+      bot = new ExpertChessBot(game);
+      break;
   }
 
-  // only pick up pieces for the side to move
-  if (
-    (game.turn == "w" && piece.search(/^b/) !== -1) ||
-    (game.turn == "b" && piece.search(/^w/) !== -1)
-  ) {
-    e.preventDefault();
-    return;
-  }
-});
+  game.board.setPosition({
+    a1: "wK",
+    a2: "wR",
+    b1: "wB",
+    b2: "wB",
+    c1: "wN",
+    c2: "wN",
+    h1: "bK",
+    h2: "bR",
+    g1: "bB",
+    g2: "bB",
+    f1: "bN",
+    f2: "bN",
+  });
 
-game.board.addEventListener("drop", (e) => {
-  const { source, target, setAction, piece } = e.detail;
-  // console.log("source " + source);
-  // console.log("target " + target);
-  console.log(e.detail);
-  if (!game.validMoves[source]) {
-    game.validMoves[source] = [];
-  }
-  const move = game.validMoves[source].includes(target);
+  game.updateAllValidMoves();
 
-  if (move && !game.checkForCheck(piece, source, target)) {
-    game.board.position[target] = piece;
-    delete game.board.position[source];
-    game.updateAllValidMoves();
-    game.updateStatus();
-  } else {
-    setAction("snapback");
+  game.board.addEventListener("drag-start", (e) => {
+    const { source, piece, position, orientation } = e.detail;
+
+    // do not pick up pieces if the game is over
+    if (game.state == "WHITE WINS" || game.state == "BLACK WINS") {
+      e.preventDefault();
+      return;
+    }
+
+    // only pick up pieces for the side to move
+    if (
+      (game.turn == "w" && piece.search(/^b/) !== -1) ||
+      (game.turn == "b" && piece.search(/^w/) !== -1)
+    ) {
+      e.preventDefault();
+      return;
+    }
+    if (bot && piece.search(/^b/) !== -1) {
+      e.preventDefault();
+      return;
+    }
+  });
+
+  game.board.addEventListener("drop", (e) => {
+    const { source, target, setAction, piece, newPosition } = e.detail;
+    console.log(e.detail);
+    // Check if the move is valid
+    if (
+      game.validMoves[source] &&
+      game.validMoves[source].includes(target) &&
+      !game.checkForCheck(piece, source, target)
+    ) {
+      // Update valid moves only once after the player's move
+      game.board.position = newPosition;
+      game.updateAllValidMoves();
+
+      // Update the game status only once
+      console.log("Board position after move:", game.board.position);
+
+      game.toggleTurn();
+      game.updateStatus();
+
+      // Check if it's the bot's turn and if so, invoke it
+
+      invokeBot(game, bot);
+      game.board.position = newPosition;
+    } else {
+      // If the move was not valid, snap the piece back to its original position
+      setAction("snapback");
+    }
+  });
+
+  function invokeBot(game, bot) {
+    if (bot && game.turn === "b" && game.state == "UNFINISHED") {
+      // Delay the bot's move by 1 second
+      setTimeout(() => {
+        bot.makeMove();
+        game.updateAllValidMoves();
+        game.toggleTurn();
+        game.updateStatus();
+      }, 1000);
+    }
   }
 });
